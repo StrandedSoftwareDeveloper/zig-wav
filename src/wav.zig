@@ -102,7 +102,7 @@ pub fn Decoder(comptime InnerReaderType: type) type {
 
         /// Parse and validate headers/metadata. Prepare to read samples.
         fn init(inner_reader: InnerReaderType) Error!Self {
-            comptime std.debug.assert(builtin.target.cpu.arch.endian() == .Little);
+            comptime std.debug.assert(builtin.target.cpu.arch.endian() == .little);
 
             var counting_reader = ReaderType{ .child_reader = inner_reader };
             var reader = counting_reader.reader();
@@ -112,7 +112,7 @@ pub fn Decoder(comptime InnerReaderType: type) type {
                 std.log.debug("not a RIFF file", .{});
                 return error.InvalidFileType;
             }
-            const total_size = try std.math.add(u32, try reader.readIntLittle(u32), 8);
+            const total_size = try std.math.add(u32, try reader.readInt(u32, .little), 8);
 
             chunk_id = try reader.readBytesNoEof(4);
             if (!std.mem.eql(u8, "WAVE", &chunk_id)) {
@@ -126,7 +126,7 @@ pub fn Decoder(comptime InnerReaderType: type) type {
             var chunk_size: usize = 0;
             while (true) {
                 chunk_id = try reader.readBytesNoEof(4);
-                chunk_size = try reader.readIntLittle(u32);
+                chunk_size = try reader.readInt(u32, .little);
 
                 if (std.mem.eql(u8, "fmt ", &chunk_id)) {
                     fmt = try FormatChunk.parse(reader, chunk_size);
@@ -206,7 +206,7 @@ pub fn Decoder(comptime InnerReaderType: type) type {
                     // Propagate EndOfStream error on truncation.
                     switch (@typeInfo(S)) {
                         .Float => try readFloat(S, reader),
-                        .Int => try reader.readIntLittle(S),
+                        .Int => try reader.readInt(S, .little),
                         else => @compileError(bad_type),
                     },
                 );
@@ -297,7 +297,7 @@ pub fn Encoder(
                 i24,
                 => {
                     for (buf) |x| {
-                        try self.writer.writeIntLittle(T, sample.convert(T, x));
+                        try self.writer.writeInt(T, sample.convert(T, x), .little);
                         self.data_size += @bitSizeOf(T) / 8;
                     }
                 },
@@ -321,15 +321,15 @@ pub fn Encoder(
             }
 
             try self.writer.writeAll("RIFF");
-            try self.writer.writeIntLittle(u32, @as(u32, @intCast(header_size + self.data_size))); // Overwritten by finalize().
+            try self.writer.writeInt(u32, @as(u32, @intCast(header_size + self.data_size)), .little); // Overwritten by finalize().
             try self.writer.writeAll("WAVE");
 
             try self.writer.writeAll("fmt ");
-            try self.writer.writeIntLittle(u32, @sizeOf(@TypeOf(self.fmt)));
+            try self.writer.writeInt(u32, @sizeOf(@TypeOf(self.fmt)), .little);
             try self.writer.writeStruct(self.fmt);
 
             try self.writer.writeAll("data");
-            try self.writer.writeIntLittle(u32, @as(u32, @intCast(self.data_size)));
+            try self.writer.writeInt(u32, @as(u32, @intCast(self.data_size)), .little);
         }
 
         /// Must be called once writing is complete. Writes total size to file header.
@@ -379,7 +379,7 @@ test "pcm(bits=16) sample_rate=44100 channels=2" {
     try expectEqual(@as(usize, 2), wav_decoder.channels());
     try expectEqual(@as(usize, data_len), wav_decoder.remaining());
 
-    var buf = try std.testing.allocator.alloc(i16, data_len);
+    const buf = try std.testing.allocator.alloc(i16, data_len);
     defer std.testing.allocator.free(buf);
 
     try expectEqual(data_len, try wav_decoder.read(i16, buf));
@@ -500,7 +500,7 @@ fn testEncodeDecode(comptime T: type, comptime sample_rate: usize) !void {
     const secs = 3;
     const increment = freq / @as(f32, @floatFromInt(sample_rate)) * twopi;
 
-    var buf = try std.testing.allocator.alloc(u8, sample_rate * @bitSizeOf(T) / 8 * (secs + 1));
+    const buf = try std.testing.allocator.alloc(u8, sample_rate * @bitSizeOf(T) / 8 * (secs + 1));
     defer std.testing.allocator.free(buf);
 
     var stream = std.io.fixedBufferStream(buf);
