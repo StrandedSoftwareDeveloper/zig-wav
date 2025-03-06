@@ -1,8 +1,14 @@
 .{
-    .name = "zig-soundio",
+    .name = .zigWav,
     .version = "0.1.0",
+    .fingerprint = 0x85dbe3588cb1f307,
     .dependencies = .{},
     .paths = .{
-        "",
+        "src",
+        "test",
+        "build.zig",
+        "build.zig.zon",
+        "LICENSE",
+        "README.md",
     },
 }
